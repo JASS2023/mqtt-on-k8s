@@ -1,0 +1,80 @@
+# Ref: https://sko.ai/blog/how-to-run-ha-mosquitto/
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: broker 
+
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: broker-conf
+  namespace: broker
+data:
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous true
+    connection broker0
+    address mosquitto-p.automation
+    topic 
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto
+  namespace: broker
+spec:
+  type: NodePort
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt
+      nodePort: 30000
+  selector:
+    app: mosquitto
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: broker
+spec:
+  selector:
+    matchLabels:
+      app: mosquitto
+  template:
+    metadata:
+      labels:
+        app: mosquitto
+    spec:
+      containers:
+      - name: mosquitto
+        image: eclipse-mosquitto:latest
+        args:
+          - -c
+          - /mosquitto/config/mosquitto.conf
+        command:
+          - mosquitto
+        ports:
+          - containerPort: 1883
+            name: mqtt
+          - containerPort: 9001
+            name: wss
+
+        volumeMounts:
+          - mountPath: /mosquitto/config
+            name: config
+      
+      securityContext:
+        runAsGroup: 1883
+        runAsUser: 1883
+
+      volumes:
+      - configMap:
+          name: broker-conf
+        name: config
